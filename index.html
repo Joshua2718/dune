@@ -18,6 +18,7 @@ html, body {
 }
 
 canvas {
+    touch-action: none;
     display: block;
     width: 100vw;
     height: 100vh;
@@ -647,6 +648,104 @@ function getComboAuraScale(comboNumber) {
         1.0 + comboNumber * 0.08
     );
 }
+
+
+
+/* =========================================================
+   MOBILE TOUCH INPUT
+   ========================================================= */
+
+/*
+   이 게임의 실제 입력 상태는 mouseLeft다.
+   따라서 모바일에서는 click을 만들어내는 것보다
+   pointer 이벤트에서 mouseLeft를 직접 바꾸는 것이 정확하다.
+*/
+
+let touchPointerActive = false;
+
+canvas.addEventListener(
+    "pointerdown",
+    function(e) {
+
+        if (e.pointerType !== "touch") {
+            return;
+        }
+
+        e.preventDefault();
+
+        touchPointerActive = true;
+
+        /*
+           마우스를 누른 것과 동일하게 처리.
+           화면을 터치하고 있는 동안 mouseLeft === true.
+        */
+        mouseLeft = true;
+
+        /*
+           게임오버 상태에서는 기존 PC의
+           왼쪽 마우스 클릭과 동일하게 즉시 재시작.
+        */
+        if (gameOver) {
+            touchPointerActive = false;
+            mouseLeft = false;
+            reset();
+        }
+
+    },
+    { passive: false }
+);
+
+
+window.addEventListener(
+    "pointerup",
+    function(e) {
+
+        if (
+            e.pointerType === "touch"
+            &&
+            touchPointerActive
+        ) {
+
+            e.preventDefault();
+
+            touchPointerActive = false;
+            mouseLeft = false;
+        }
+
+    },
+    { passive: false }
+);
+
+
+window.addEventListener(
+    "pointercancel",
+    function(e) {
+
+        if (e.pointerType === "touch") {
+
+            touchPointerActive = false;
+            mouseLeft = false;
+        }
+
+    },
+    { passive: false }
+);
+
+
+/*
+   손가락이 화면 밖으로 나간 경우에도
+   입력이 계속 눌린 상태로 남지 않도록 한다.
+*/
+
+window.addEventListener(
+    "blur",
+    function() {
+
+        touchPointerActive = false;
+        mouseLeft = false;
+
+    }
+);
 
 
 /* =========================================================
@@ -1482,6 +1581,27 @@ const MAX_ZOOM = 95;
 
 const MIN_ZOOM = 50;
 
+/* Responsive camera scaling: 1600x900 is the original reference view. */
+const CAMERA_REFERENCE_WIDTH = 1600;
+const CAMERA_REFERENCE_HEIGHT = 900;
+
+function getViewportScale() {
+    /*
+        가로 방향으로 긴 화면에서도 세로에 끌려가서
+        과도하게 줌아웃되지 않도록 가로 크기를 기준으로 한다.
+    */
+    return W / CAMERA_REFERENCE_WIDTH;
+}
+
+function getResponsiveMaxZoom() {
+    return MAX_ZOOM * getViewportScale();
+}
+
+function getResponsiveMinZoom() {
+    return MIN_ZOOM * getViewportScale();
+}
+
+
 
 /*
     좌우 카메라
@@ -1577,11 +1697,13 @@ function updateCamera(dt) {
 
 
     targetZoom =
-        MAX_ZOOM
+        getResponsiveMaxZoom()
         -
         height
         *
-        ZOOM_HEIGHT_FACTOR;
+        ZOOM_HEIGHT_FACTOR
+        *
+        getViewportScale();
 
 
     /*
@@ -1590,9 +1712,9 @@ function updateCamera(dt) {
 
     targetZoom =
         Math.max(
-            MIN_ZOOM,
+            getResponsiveMinZoom(),
             Math.min(
-                MAX_ZOOM,
+                getResponsiveMaxZoom(),
                 targetZoom
             )
         );
@@ -1998,8 +2120,16 @@ function drawTerrain() {
         "#eeeeee";
 
 
+    /*
+        지형선도 카메라 스케일에 맞춰 축소한다.
+        모바일의 작은 화면에서 2px가 상대적으로 너무 두껍게
+        보이는 현상을 방지한다.
+    */
     ctx.lineWidth =
-        2;
+        Math.max(
+            0.8,
+            2 * getViewportScale()
+        );
 
 
     ctx.stroke();
