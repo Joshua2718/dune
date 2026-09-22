@@ -784,6 +784,7 @@ window.addEventListener(
     function() {
 
         mouseLeft = false;
+        remoteOnePressed = false;
     }
 );
 
@@ -800,9 +801,70 @@ window.addEventListener(
 );
 
 
+
+/* =========================================================
+   ANDROID TV REMOTE INPUT
+   ========================================================= */
+
+/*
+    Android TV 리모컨의 "1" 버튼을
+    PC의 좌클릭과 동일한 입력으로 취급한다.
+
+    1 버튼을 누르고 있는 동안 mouseLeft === true.
+    1 버튼을 떼면 mouseLeft === false.
+    게임오버에서 1 버튼을 누르면 좌클릭과 동일하게 재시작한다.
+*/
+let remoteOnePressed = false;
+
+window.addEventListener(
+    "keydown",
+    function(e) {
+
+        if (
+            e.code === "Digit1"
+            || e.code === "Numpad1"
+            || e.key === "1"
+        ) {
+
+            e.preventDefault();
+
+            if (!remoteOnePressed) {
+                remoteOnePressed = true;
+                mouseLeft = true;
+
+                if (gameOver) {
+                    remoteOnePressed = false;
+                    mouseLeft = false;
+                    reset();
+                }
+            }
+        }
+    }
+);
+
+window.addEventListener(
+    "keyup",
+    function(e) {
+
+        if (
+            e.code === "Digit1"
+            || e.code === "Numpad1"
+            || e.key === "1"
+        ) {
+
+            e.preventDefault();
+
+            remoteOnePressed = false;
+            mouseLeft = false;
+        }
+    }
+);
+
+
 /* =========================================================
    VECTOR
    ========================================================= */
+
 
 function dot(
     ax,
