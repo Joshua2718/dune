@@ -803,29 +803,40 @@ window.addEventListener(
 
 
 /* =========================================================
-   ANDROID TV REMOTE INPUT
+   ANDROID TV REMOTE INPUT & FOCUS SETUP
    ========================================================= */
 
-/*
-    Android TV 리모컨의 "1" 버튼을
-    PC의 좌클릭과 동일한 입력으로 취급한다.
+// 1. Canvas가 포커스를 받을 수 있도록 tabindex 설정 및 포커스 강제
+canvas.setAttribute("tabindex", "0");
+canvas.focus();
 
-    1 버튼을 누르고 있는 동안 mouseLeft === true.
-    1 버튼을 떼면 mouseLeft === false.
-    게임오버에서 1 버튼을 누르면 좌클릭과 동일하게 재시작한다.
-*/
+// 화면 어디를 터치/클릭하든 Canvas로 포커스를 다시 가져옵니다.
+window.addEventListener("click", function() {
+    canvas.focus();
+});
+
 let remoteOnePressed = false;
+
+// 2. 입력 키 감지 함수 (숫자 1, Numpad 1, OK/Enter/Space 지원)
+function isControlKey(e) {
+    return (
+        e.code === "Digit1" ||
+        e.code === "Numpad1" ||
+        e.key === "1" ||
+        e.keyCode === 49 ||        // 숫자 '1'의 KeyCode (TV 브라우저 호환)
+        e.keyCode === 97 ||        // 넘버패드 '1'의 KeyCode
+        e.key === "Enter" ||       // 리모컨 OK/확인 버튼 호환성 추가
+        e.code === "Space" ||
+        e.keyCode === 13 ||
+        e.keyCode === 32
+    );
+}
 
 window.addEventListener(
     "keydown",
     function(e) {
-
-        if (
-            e.code === "Digit1"
-            || e.code === "Numpad1"
-            || e.key === "1"
-        ) {
-
+        if (isControlKey(e)) {
+            // TV 화면 스크롤 등 브라우저 기본 동작 방지
             e.preventDefault();
 
             if (!remoteOnePressed) {
@@ -839,25 +850,21 @@ window.addEventListener(
                 }
             }
         }
-    }
+    },
+    { passive: false }
 );
 
 window.addEventListener(
     "keyup",
     function(e) {
-
-        if (
-            e.code === "Digit1"
-            || e.code === "Numpad1"
-            || e.key === "1"
-        ) {
-
+        if (isControlKey(e)) {
             e.preventDefault();
 
             remoteOnePressed = false;
             mouseLeft = false;
         }
-    }
+    },
+    { passive: false }
 );
 
 
