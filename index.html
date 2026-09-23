@@ -331,7 +331,10 @@ const player = {
     jumpActive: false,
 
     /* 튕겨 나간 직후 연속 충돌로 인한 사망 방지 유예 시간 (초) */
-    impactGraceTime: 0
+    impactGraceTime: 0,
+
+    // 공중점프 사용 여부
+    airJumpUsed: false
 };
 
 let landingGuideY = 0;
@@ -361,7 +364,7 @@ const MAX_VX = 25.0; // vx 상한값 정의
 const SOFT_LANDING_THRESHOLD = 9.0;
 
 const BASE_COMBO_REQUIRED_Y = 4.0;
-const MAX_COMBO_REQUIRED_Y = 9.0;
+const MAX_COMBO_REQUIRED_Y = 8.0;
 
 function getRequiredComboY() {
 
@@ -405,7 +408,23 @@ const GROUND_CONTACT_EPSILON = 0.03;
 let comboPulse = 0;
 let comboPulseMax = 0.70;
 
+// 콤보 성공 전용 연출
+let comboBurst = [];
+let comboFlash = 0;
+let comboFlashMax = 0.22;
+
 let comboPopup = null;
+
+/* =========================================================
+   SKID MARKS
+   콤보 성공 착지 지점을 눈에 띄게 표시
+   ========================================================= */
+
+let skidMarks = [];
+
+const SKID_MARK_LIFE = 8.0;
+const SKID_MARK_MAX = 36;
+
 
 // 체류 점수 기본 구간 (1점, 2점, 4점, 8점)
 const AIRTIME_BONUS_THRESHOLDS = [
@@ -533,6 +552,8 @@ window.addEventListener(
    ========================================================= */
 
 let mouseLeft = false;
+let mouseRight = false;
+let mouseRightJustPressed = false;
 
 canvas.addEventListener(
     "mousedown",
@@ -542,6 +563,20 @@ canvas.addEventListener(
 
             mouseLeft = true;
         }
+
+        if (e.button === 2) {
+
+            e.preventDefault();
+            mouseRight = true;
+            mouseRightJustPressed = true;
+        }
+    }
+);
+
+canvas.addEventListener(
+    "contextmenu",
+    function(e) {
+        e.preventDefault();
     }
 );
 
@@ -553,6 +588,11 @@ window.addEventListener(
 
             mouseLeft = false;
         }
+
+        if (e.button === 2) {
+
+            mouseRight = false;
+        }
     }
 );
 
@@ -561,7 +601,9 @@ window.addEventListener(
     function() {
 
         mouseLeft = false;
+        mouseRight = false;
         remoteOnePressed = false;
+        remoteTwoPressed = false;
     }
 );
 
@@ -582,6 +624,7 @@ window.addEventListener(
    ========================================================= */
 
 let remoteOnePressed = false;
+let remoteTwoPressed = false;
 
 window.addEventListener(
     "keydown",
@@ -627,6 +670,43 @@ window.addEventListener(
     }
 );
 
+
+window.addEventListener(
+    "keydown",
+    function(e) {
+
+        if (
+            e.code === "Digit2"
+            || e.code === "Numpad2"
+            || e.key === "2"
+        ) {
+
+            e.preventDefault();
+            if (!remoteTwoPressed) {
+                remoteTwoPressed = true;
+                mouseRight = true;
+                mouseRightJustPressed = true;
+            }
+        }
+    }
+);
+
+window.addEventListener(
+    "keyup",
+    function(e) {
+
+        if (
+            e.code === "Digit2"
+            || e.code === "Numpad2"
+            || e.key === "2"
+        ) {
+
+            e.preventDefault();
+            remoteTwoPressed = false;
+            mouseRight = false;
+        }
+    }
+);
 
 /* =========================================================
    VECTOR
@@ -752,6 +832,7 @@ function handleLanding(impactSpeed, jumpHeight) {
                 combo * combo;
 
             triggerComboEffect();
+            createSkidMark();
 
         } else {
 
@@ -803,23 +884,16 @@ function triggerComboEffect() {
         getComboColor(combo);
 
     comboPulse = comboPulseMax;
+    comboFlash = comboFlashMax;
 
     comboPopup = {
-
         x: player.x + 0.34,
-
         y: player.y + 0.24,
-
         vx: 0.65,
-
         vy: 0.85,
-
         life: 0.90,
-
         maxLife: 0.90,
-
         text: `×${combo}`,
-
         color: color
     };
 }
@@ -840,6 +914,19 @@ function triggerAirtimeBonusEffect(gained) {
 }
 
 function updateComboEffects(dt) {
+
+    comboFlash = Math.max(0, comboFlash - dt);
+
+    for (const particle of comboBurst) {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vx *= Math.exp(-2.5 * dt);
+        particle.vy *= Math.exp(-2.5 * dt);
+        particle.life -= dt;
+    }
+
+    comboBurst =
+        comboBurst.filter(particle => particle.life > 0);
 
     if (comboPopup) {
 
@@ -933,6 +1020,24 @@ function physicsStep(dt) {
         }
     }
 
+    // 공중점프: getRequiredComboY() 높이에 도달한 뒤 콤보 1개를 소모하여 사용
+    // 흰색(0콤보) 상태에서는 사용할 수 없으며, 콤보가 남아 있는 동안 횟수 제한 없이 사용 가능
+    if (
+        mouseRightJustPressed
+        &&
+        !player.grounded
+        &&
+        player.y >= getRequiredComboY()
+        &&
+        combo > 0
+    ) {
+
+        player.vy = 7.0;
+        combo -= 1;
+        player.airJumpUsed = false;
+        mouseRightJustPressed = false;
+    }
+
     // vx 상한을 16으로 제한
     player.vx = Math.min(player.vx, MAX_VX);
 
@@ -977,6 +1082,8 @@ function physicsStep(dt) {
             }
         }
     }
+
+    mouseRightJustPressed = false;
 
     checkPassedBlocks();
 
@@ -1049,6 +1156,7 @@ function physicsStep(dt) {
         currentJumpAirTime = 0;
         airtimeBonusScore = 0;
         airtimeBonusPopup = null;
+        player.airJumpUsed = false;
     }
 
     if (penetration > 0) {
@@ -1464,6 +1572,190 @@ function drawBackground() {
    TERRAIN DRAW
    ========================================================= */
 
+/* =========================================================
+   SKID MARK EFFECT
+   ========================================================= */
+
+function createSkidMark() {
+
+    const centerX = player.x;
+    const speed = Math.abs(player.vx);
+    const direction = player.vx >= 0 ? 1 : -1;
+
+    const length = Math.max(
+        0.55,
+        Math.min(1.80, 0.45 + speed * 0.065)
+    );
+
+    const treadWidth = Math.max(
+        0.085,
+        Math.min(0.16, 0.07 + speed * 0.004)
+    );
+
+    const pairSpacing = 0.20;
+    const sampleCount = 18;
+    const marks = [];
+
+    /*
+       매 샘플마다 terrainHeight를 다시 계산해서
+       지형의 곡률을 따라가는 트레드마크를 만든다.
+    */
+    for (const side of [-1, 1]) {
+
+        const points = [];
+
+        for (let i = 0; i <= sampleCount; i++) {
+
+            const t = i / sampleCount;
+
+            const x =
+                centerX
+                - direction * length * t;
+
+            const groundY = terrainHeight(x);
+
+            const eps = 0.01;
+
+            const slope =
+                (
+                    terrainHeight(x + eps)
+                    -
+                    terrainHeight(x - eps)
+                ) / (2 * eps);
+
+            const normalLength =
+                Math.sqrt(1 + slope * slope);
+
+            // 지형 내부를 향하는 법선
+            const nx = -slope / normalLength;
+            const ny = -1 / normalLength;
+
+            const px =
+                x + nx * pairSpacing * side;
+
+            /*
+               반드시 지형 경계선보다 아래에 있도록 보정.
+               따라서 트레드가 지형 밖으로 튀어나오지 않는다.
+            */
+            const py =
+                Math.min(
+                    groundY + ny * pairSpacing * side,
+                    groundY - 0.035
+                );
+
+            points.push({
+                x: px,
+                y: py
+            });
+        }
+
+        marks.push(points);
+    }
+
+    skidMarks.push({
+        marks,
+        life: SKID_MARK_LIFE,
+        maxLife: SKID_MARK_LIFE,
+        width: treadWidth,
+        comboColor: getComboColor(combo, 0.9)
+    });
+
+    while (skidMarks.length > SKID_MARK_MAX) {
+        skidMarks.shift();
+    }
+}
+
+function updateSkidMarks(dt) {
+
+    for (let i = skidMarks.length - 1; i >= 0; i--) {
+
+        skidMarks[i].life -= dt;
+
+        if (skidMarks[i].life <= 0) {
+            skidMarks.splice(i, 1);
+        }
+    }
+}
+
+function drawSkidMarks() {
+
+    if (skidMarks.length === 0) {
+        return;
+    }
+
+    for (const skid of skidMarks) {
+
+        const alpha =
+            Math.min(1, skid.life / 0.8) * 0.88;
+
+        ctx.save();
+
+        ctx.globalAlpha = alpha;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // 메인 트레드
+        ctx.strokeStyle = "#080808";
+        ctx.lineWidth = Math.max(
+            4,
+            skid.width * camera.zoom
+        );
+
+        for (const points of skid.marks) {
+
+            if (points.length < 2) continue;
+
+            ctx.beginPath();
+
+            ctx.moveTo(
+                screenX(points[0].x),
+                screenY(points[0].y)
+            );
+
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(
+                    screenX(points[i].x),
+                    screenY(points[i].y)
+                );
+            }
+
+            ctx.stroke();
+        }
+
+        // 콤보 색상 하이라이트
+        ctx.globalAlpha = alpha * 0.22;
+        ctx.strokeStyle = skid.comboColor;
+        ctx.lineWidth = Math.max(
+            1,
+            skid.width * camera.zoom * 0.30
+        );
+
+        for (const points of skid.marks) {
+
+            if (points.length < 2) continue;
+
+            ctx.beginPath();
+
+            ctx.moveTo(
+                screenX(points[0].x),
+                screenY(points[0].y) - 1
+            );
+
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(
+                    screenX(points[i].x),
+                    screenY(points[i].y) - 1
+                );
+            }
+
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+
+
 function drawTerrain() {
 
     const visibleHalfWidth =
@@ -1760,6 +2052,105 @@ function drawPlayer() {
 
     ctx.stroke();
 
+    // 콤보 성공 전용 폭발 연출
+    if (comboBurst.length > 0 || comboFlash > 0) {
+        const burstX = screenX(player.x);
+        const burstY = screenY(player.y);
+        const color = getComboColor(combo, 1);
+
+        ctx.save();
+
+        // 짧은 화면 플래시
+        if (comboFlash > 0) {
+            ctx.globalAlpha =
+                0.10 * (comboFlash / comboFlashMax);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        // 공을 중심으로 퍼지는 링
+        const burstProgress =
+            1 - Math.min(
+                1,
+                comboBurst.length > 0
+                    ? comboBurst[0].life / comboBurst[0].maxLife
+                    : 1
+            );
+
+        ctx.globalAlpha =
+            0.75 * (1 - burstProgress);
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3 + Math.min(combo, 8) * 0.35;
+        ctx.beginPath();
+        ctx.arc(
+            burstX,
+            burstY,
+            player.radius * camera.zoom *
+                (1.5 + burstProgress * 2.4),
+            0,
+            Math.PI * 2
+        );
+        ctx.stroke();
+
+        // 방사형 빛줄기
+        const rayCount = 8;
+        const rayRadius =
+            player.radius * camera.zoom *
+            (1.9 + burstProgress * 1.8);
+
+        ctx.lineWidth = 2;
+        ctx.globalAlpha =
+            0.45 * (1 - burstProgress);
+
+        for (let i = 0; i < rayCount; i++) {
+            const angle =
+                i * Math.PI * 2 / rayCount +
+                combo * 0.12;
+
+            const inner = rayRadius * 0.55;
+            const outer = rayRadius * 1.15;
+
+            ctx.beginPath();
+            ctx.moveTo(
+                burstX + Math.cos(angle) * inner,
+                burstY + Math.sin(angle) * inner
+            );
+            ctx.lineTo(
+                burstX + Math.cos(angle) * outer,
+                burstY + Math.sin(angle) * outer
+            );
+            ctx.stroke();
+        }
+
+        // 작은 파편
+        ctx.fillStyle = color;
+
+        for (const particle of comboBurst) {
+            const alpha =
+                Math.max(
+                    0,
+                    particle.life / particle.maxLife
+                );
+
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();
+            ctx.arc(
+                screenX(particle.x),
+                screenY(particle.y),
+                Math.max(
+                    1.5,
+                    particle.size * camera.zoom
+                ),
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
     if (airtimeBonusPopup) {
 
         const alpha =
@@ -1829,11 +2220,20 @@ function drawPlayer() {
 
         ctx.rotate(-Math.PI / 12);
 
-        ctx.fillStyle =
+        // 콤보 성공은 일반 점수 팝업과 달리 큰 외곽선/광택을 사용
+        ctx.font =
+            "900 27px Arial";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.shadowColor =
             comboPopup.color;
 
-        ctx.font =
-            "bold 22px Arial";
+        ctx.shadowBlur = 12;
+
+        ctx.fillStyle =
+            "#ffffff";
 
         ctx.textAlign =
             "left";
@@ -1849,6 +2249,17 @@ function drawPlayer() {
         ctx.shadowOffsetX = 1;
 
         ctx.shadowOffsetY = 2;
+
+        ctx.strokeStyle =
+            comboPopup.color;
+
+        ctx.lineWidth = 3;
+
+        ctx.strokeText(
+            comboPopup.text,
+            0,
+            0
+        );
 
         ctx.fillText(
             comboPopup.text,
@@ -1998,6 +2409,8 @@ function render() {
 
     drawTerrain();
 
+    drawSkidMarks();
+
     drawLandingThreshold();
 
     drawPlayer();
@@ -2031,10 +2444,14 @@ function reset() {
     passedBlockCount = 0;
 
     comboPulse = 0;
+    comboFlash = 0;
+    comboBurst = [];
     comboPopup = null;
     currentJumpAirTime = 0;
     airtimeBonusScore = 0;
     airtimeBonusPopup = null;
+
+    skidMarks = [];
 
     terrainBlocks = [];
 
@@ -2072,6 +2489,7 @@ function reset() {
     player.grounded = true;
 
     player.jumpActive = false;
+    player.airJumpUsed = false;
 
     player.impactGraceTime = 0;
 
@@ -2151,6 +2569,8 @@ function loop(time) {
     updateLandingGuide(gameDt);
 
     updateComboEffects(gameDt);
+
+    updateSkidMarks(gameDt);
 
     render();
 
