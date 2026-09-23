@@ -61,24 +61,6 @@ resize();
    TERRAIN FUNCTIONS
    ========================================================= */
 
-/*
-    start(x)
-
-        1
-            -2π < x < 0
-
-        0.5 * (cos(x/5) + 1)
-             0 < x < 5π
-
-    전체 길이 = 7π
-
-    u:
-        0 ~ 7π
-
-    x:
-        -2π ~ 5π
-*/
-
 function terrainStart(u) {
 
     const x = u;
@@ -94,15 +76,6 @@ function terrainStart(u) {
     );
 }
 
-
-/*
-    f(x) = 0.8 * (cos(x / 1.1) + 1)
-
-    -1.1π < x < 1.1π
-
-    가로 길이 = 2.2π
-*/
-
 function terrainF(u) {
 
     const x =
@@ -115,15 +88,6 @@ function terrainF(u) {
     );
 }
 
-
-/*
-    g(x) = 1.2 - |cos(x / 1.4) - 0.2|
-
-    -1.4π < x < 1.4π
-
-    가로 길이 = 2.8π
-*/
-
 function terrainG(u) {
 
     const x =
@@ -135,19 +99,6 @@ function terrainG(u) {
         ) - 0.2
     );
 }
-
-
-/*
-    h(x)
-
-        0.6 * (cos(x / 0.75) + 1)
-            -0.75π < x < 0
-
-        0.6 * (cos(x / (2 * 0.75)) + 1)
-             0 < x < 1.5π
-
-    가로 길이 = 2.25π
-*/
 
 function terrainH(u) {
 
@@ -176,11 +127,6 @@ function terrainH(u) {
    ========================================================= */
 
 const TERRAIN_TYPES = [
-
-    /*
-        0번 = 시작 전용
-        랜덤 선택에서는 제외
-    */
 
     {
         name: "start",
@@ -215,14 +161,6 @@ const TERRAIN_TYPES = [
 
 let terrainBlocks = [];
 
-
-/*
-    랜덤 지형 하나 생성
-
-    start는 제외하고
-    f / g / h 중에서 선택한다.
-*/
-
 function generateNextTerrainBlock() {
 
     const typeIndex =
@@ -238,11 +176,8 @@ function generateNextTerrainBlock() {
     const type =
         TERRAIN_TYPES[typeIndex];
 
-
-    /* 선택된 지형의 가로/세로 배율: 1.0 ~ 1.8 */
     const scale =
-        1.0 + Math.random() * 0.5;
-
+        1.0 + Math.random() * 0.4;
 
     const start =
         terrainBlocks.length === 0
@@ -251,32 +186,20 @@ function generateNextTerrainBlock() {
                 terrainBlocks.length - 1
             ].end;
 
-
     terrainBlocks.push({
-
         type: typeIndex,
-
         name: type.name,
-
         scale: scale,
-
         start: start,
-
         end: start + type.width * scale
     });
 }
-
-
-/*
-    x까지 지형을 미리 만든다.
-*/
 
 function ensureTerrainTo(x) {
 
     if (x <= 0) {
         return;
     }
-
 
     while (
         terrainBlocks.length === 0
@@ -285,15 +208,9 @@ function ensureTerrainTo(x) {
             terrainBlocks.length - 1
         ].end < x
     ) {
-
         generateNextTerrainBlock();
     }
 }
-
-
-/*
-    특정 x가 어느 블럭인지 찾는다.
-*/
 
 function findTerrainBlock(x) {
 
@@ -301,15 +218,10 @@ function findTerrainBlock(x) {
         return null;
     }
 
-
     ensureTerrainTo(x);
 
-
     let left = 0;
-
-    let right =
-        terrainBlocks.length - 1;
-
+    let right = terrainBlocks.length - 1;
 
     while (left <= right) {
 
@@ -318,25 +230,17 @@ function findTerrainBlock(x) {
                 (left + right) / 2
             );
 
-
         const block =
             terrainBlocks[mid];
 
-
         if (x < block.start) {
-
             right = mid - 1;
-
         } else if (x > block.end) {
-
             left = mid + 1;
-
         } else {
-
             return block;
         }
     }
-
 
     return null;
 }
@@ -348,40 +252,28 @@ function findTerrainBlock(x) {
 
 function terrainHeight(x) {
 
-    /*
-        시작점 왼쪽은 평지
-    */
-
     if (x < 0) {
         return 0.8;
     }
 
-
     const block =
         findTerrainBlock(x);
-
 
     if (!block) {
         return 0;
     }
-
 
     const type =
         TERRAIN_TYPES[
             block.type
         ];
 
-
     const scale =
         block.scale || 1.0;
 
-
-    /* 가로로 scale만큼 늘어난 블럭을 원래 좌표로 변환 */
     const localX =
         (x - block.start) / scale;
 
-
-    /* 세로도 동일한 scale 적용 */
     return type.height(localX) * scale;
 }
 
@@ -396,9 +288,7 @@ function terrainSlope(x) {
         return 0;
     }
 
-
     const dx = 0.0001;
-
 
     return (
         terrainHeight(
@@ -432,34 +322,18 @@ const player = {
 
     grounded: true,
 
-    /*
-        이번 점프가 시작된 지면의 높이
-    */
-
     jumpBaseY: 0,
-
-    /*
-        이번 점프가 시작된 월드 X
-    */
 
     jumpBaseX: 0,
 
-    /*
-        이번 점프에서 도달한 최고 높이
-    */
-
     maxJumpHeight: 0,
 
-    jumpActive: false
+    jumpActive: false,
+
+    /* 튕겨 나간 직후 연속 충돌로 인한 사망 방지 유예 시간 (초) */
+    impactGraceTime: 0
 };
 
-
-/*
-    현재 점프에서 요구되는 최소 높이를
-    화면에 표시하기 위한 가이드 위치.
-
-    실제 목표값과 분리해서 부드럽게 이동시킨다.
-*/
 let landingGuideY = 0;
 
 
@@ -469,81 +343,25 @@ let landingGuideY = 0;
 
 const GRAVITY = 8.0;
 
+const RIGHT_ACCELERATION = 10.0;
 
-/*
-    지면에서 좌클릭
-*/
+const COMBO_ACCELERATION_BONUS = 1.0;
 
-const RIGHT_ACCELERATION = 12.0;
-
-
-/*
-    콤보 1회당 지면 가속도 증가량
-*/
-
-const COMBO_ACCELERATION_BONUS = 0.9;
-
-
-/*
-    공중에서 좌클릭
-*/
-
-const DOWN_ACCELERATION = 17.0;
-
-
-/*
-    충돌시 튕김
-
-    0 = 튕기지 않음
-*/
+const DOWN_ACCELERATION = 14.0;
 
 const RESTITUTION = 0;
+
+const MAX_VX = 25.0; // vx 상한값 정의
 
 
 /* =========================================================
    LANDING / DIFFICULTY
    ========================================================= */
 
-/*
-    법선속도:
+const SOFT_LANDING_THRESHOLD = 9.0;
 
-        normalVelocity = v · n
-
-    n은 지면의 위쪽 법선이므로
-    착지 순간에는 음수가 된다.
-
-    따라서 충돌 속도는:
-
-        impactSpeed = -normalVelocity
-*/
-
-
-/*
-    이 값 이하이면 소프트 랜딩
-*/
-
-const SOFT_LANDING_THRESHOLD = 7.5;
-
-
-/*
-    콤보를 만들기 위해 필요한 절대 y 좌표
-
-    난이도 게이지의 현재 비율에 따라
-    BASE_COMBO_REQUIRED_Y에서 MAX_COMBO_REQUIRED_Y까지
-    연속적으로 증가한다.
-*/
-
-const BASE_COMBO_REQUIRED_Y = 5.0;
-const MAX_COMBO_REQUIRED_Y = 10.0;
-
-
-/*
-    현재 난이도에서 콤보를 만들기 위해
-    도달해야 하는 절대 y 좌표
-
-    gauge / DIFFICULTY_MAX
-    = 현재 난이도 게이지의 비율
-*/
+const BASE_COMBO_REQUIRED_Y = 4.0;
+const MAX_COMBO_REQUIRED_Y = 9.0;
 
 function getRequiredComboY() {
 
@@ -555,7 +373,6 @@ function getRequiredComboY() {
                 difficultyGauge / DIFFICULTY_MAX
             )
         );
-
 
     return (
         BASE_COMBO_REQUIRED_Y
@@ -570,80 +387,54 @@ function getRequiredComboY() {
     );
 }
 
+const HARD_LANDING_THRESHOLD = 12.5;
 
-/*
-    이 값 이상이면 하드 랜딩
-    → 게임 종료
-*/
+const DIFFICULTY_SOFT_LANDING_GAIN = 10;
 
-const HARD_LANDING_THRESHOLD = 12.0;
-
-
-/*
-    점수는 지형 블럭 통과와
-    소프트 랜딩 콤보로만 획득한다.
-*/
-
-/*
-    난이도 게이지
-
-    원래 피버 게이지와 같은 방식으로 증가/감소하지만
-    보상이 아니라 착지 요구 높이를 높이는 데 사용한다.
-*/
-
-const DIFFICULTY_SOFT_LANDING_GAIN = 18;
-
-const DIFFICULTY_COMBO_GAIN = 4;
+const DIFFICULTY_COMBO_GAIN = 12;
 
 const DIFFICULTY_MAX = 100;
-
-
-/*
-    지면에서 발생하는 미세한 튐은 실제 점프로 취급하지 않는다.
-*/
 
 const GROUND_CONTACT_EPSILON = 0.03;
 
 
 /* =========================================================
-   COMBO GRAPHICS
+   COMBO GRAPHICS & AIRTIME
    ========================================================= */
-
-/*
-    콤보마다 색과 오라의 성격을 다르게 한다.
-    콤보가 올라갈수록 색상이 순환하고
-    오라의 크기와 강도도 조금씩 증가한다.
-*/
 
 let comboPulse = 0;
 let comboPulseMax = 0.70;
 
 let comboPopup = null;
 
+// 체류 점수 기본 구간 (1점, 2점, 4점, 8점)
 const AIRTIME_BONUS_THRESHOLDS = [
-    { time: 0.5, score: 2 },
-    { time: 1.0, score: 4 },
-    { time: 1.5, score: 8 }
+    { time: 0.4, score: 1 },
+    { time: 0.8, score: 3 },
+    { time: 1.2, score: 7 },
+    { time: 1.6, score: 15 }
 ];
 
 let currentJumpAirTime = 0;
 let airtimeBonusScore = 0;
 let airtimeBonusPopup = null;
 
-
 const COMBO_COLORS = [
     [55, 100, 62],   // yellow
     [0, 100, 62],    // red
     [275, 100, 68],  // purple
-    [0, 0, 0]        // black (4+)
+    [210, 20, 15]    // 다크 차콜
 ];
 
-
+// 콤보 및 공의 상태에 맞는 색상을 리턴
 function getComboColor(comboNumber, alpha = 1) {
+    if (comboNumber <= 0) {
+        return `rgba(255, 255, 255, ${alpha})`; // 0콤보 시 기본 흰색
+    }
 
     const index =
         Math.min(
-            Math.max(comboNumber, 1),
+            comboNumber,
             COMBO_COLORS.length
         ) - 1;
 
@@ -652,7 +443,6 @@ function getComboColor(comboNumber, alpha = 1) {
 
     return `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
 }
-
 
 function getComboAuraScale(comboNumber) {
 
@@ -663,16 +453,9 @@ function getComboAuraScale(comboNumber) {
 }
 
 
-
 /* =========================================================
    MOBILE TOUCH INPUT
    ========================================================= */
-
-/*
-   이 게임의 실제 입력 상태는 mouseLeft다.
-   따라서 모바일에서는 click을 만들어내는 것보다
-   pointer 이벤트에서 mouseLeft를 직접 바꾸는 것이 정확하다.
-*/
 
 let touchPointerActive = false;
 
@@ -688,16 +471,8 @@ canvas.addEventListener(
 
         touchPointerActive = true;
 
-        /*
-           마우스를 누른 것과 동일하게 처리.
-           화면을 터치하고 있는 동안 mouseLeft === true.
-        */
         mouseLeft = true;
 
-        /*
-           게임오버 상태에서는 기존 PC의
-           왼쪽 마우스 클릭과 동일하게 즉시 재시작.
-        */
         if (gameOver) {
             touchPointerActive = false;
             mouseLeft = false;
@@ -707,7 +482,6 @@ canvas.addEventListener(
     },
     { passive: false }
 );
-
 
 window.addEventListener(
     "pointerup",
@@ -729,7 +503,6 @@ window.addEventListener(
     { passive: false }
 );
 
-
 window.addEventListener(
     "pointercancel",
     function(e) {
@@ -743,12 +516,6 @@ window.addEventListener(
     },
     { passive: false }
 );
-
-
-/*
-   손가락이 화면 밖으로 나간 경우에도
-   입력이 계속 눌린 상태로 남지 않도록 한다.
-*/
 
 window.addEventListener(
     "blur",
@@ -767,7 +534,6 @@ window.addEventListener(
 
 let mouseLeft = false;
 
-
 canvas.addEventListener(
     "mousedown",
     function(e) {
@@ -778,7 +544,6 @@ canvas.addEventListener(
         }
     }
 );
-
 
 window.addEventListener(
     "mouseup",
@@ -791,7 +556,6 @@ window.addEventListener(
     }
 );
 
-
 window.addEventListener(
     "blur",
     function() {
@@ -800,7 +564,6 @@ window.addEventListener(
         remoteOnePressed = false;
     }
 );
-
 
 window.addEventListener(
     "mousedown",
@@ -814,19 +577,10 @@ window.addEventListener(
 );
 
 
-
 /* =========================================================
    ANDROID TV REMOTE INPUT
    ========================================================= */
 
-/*
-    Android TV 리모컨의 "1" 버튼을
-    PC의 좌클릭과 동일한 입력으로 취급한다.
-
-    1 버튼을 누르고 있는 동안 mouseLeft === true.
-    1 버튼을 떼면 mouseLeft === false.
-    게임오버에서 1 버튼을 누르면 좌클릭과 동일하게 재시작한다.
-*/
 let remoteOnePressed = false;
 
 window.addEventListener(
@@ -878,7 +632,6 @@ window.addEventListener(
    VECTOR
    ========================================================= */
 
-
 function dot(
     ax,
     ay,
@@ -912,18 +665,7 @@ let difficultyGauge = 0;
 
 let gameOver = false;
 
-/*
-    마지막으로 점수를 획득한 블럭의 다음 인덱스.
-
-    블럭 하나의 끝을 넘어갈 때마다
-    1점씩 얻는다.
-*/
 let nextScoreBlockIndex = 0;
-
-
-/*
-    콤보에 따라 지면 가속도가 증가한다.
-*/
 
 function getGroundAcceleration() {
 
@@ -945,15 +687,17 @@ function handleLanding(impactSpeed, jumpHeight) {
 
     lastImpactSpeed = impactSpeed;
 
+    // 유예 시간이 남아있거나 vy가 5 이하여서 봐주는 상황
+    if (player.impactGraceTime > 0 || Math.abs(player.vy) <= 4.0) {
+        return true;
+    }
 
-    /*
-        너무 강하게 박으면
-        즉시 게임 종료
-    */
+    const jumpWorldHeight = Math.max(0, jumpHeight - player.jumpBaseY);
+    const jumpPixelHeight = jumpWorldHeight * camera.zoom;
 
     if (
         impactSpeed
-        >= HARD_LANDING_THRESHOLD * (1 + 0.9 * difficultyGauge / DIFFICULTY_MAX)
+        >= HARD_LANDING_THRESHOLD * (1 + 0.4 * difficultyGauge / DIFFICULTY_MAX) * (1 + 0.2 * jumpPixelHeight / H)
     ) {
 
         gameOver = true;
@@ -966,14 +710,9 @@ function handleLanding(impactSpeed, jumpHeight) {
         return false;
     }
 
-
-    /*
-        소프트 랜딩
-    */
-
     if (
         impactSpeed
-        <= SOFT_LANDING_THRESHOLD * (1 + 1.1 * difficultyGauge / DIFFICULTY_MAX)
+        <= SOFT_LANDING_THRESHOLD * (1 + 0.3 * difficultyGauge / DIFFICULTY_MAX) * (1 + 0.3 * jumpPixelHeight / H)
     ) {
 
         const quality =
@@ -989,24 +728,8 @@ function handleLanding(impactSpeed, jumpHeight) {
                 )
             );
 
-
-        /*
-            현재 난이도에서 요구하는
-            절대 y 좌표
-        */
-
         const requiredY =
             getRequiredComboY();
-
-
-        /*
-            실제 이번 점프의 최고 y가
-            요구 y에 도달했는지 검사한다.
-
-            hard landing이 아니더라도
-            이 높이에 도달하지 못했다면
-            콤보는 끊긴다.
-        */
 
         if (
             jumpHeight
@@ -1037,12 +760,6 @@ function handleLanding(impactSpeed, jumpHeight) {
             lastLandingScore = 0;
         }
 
-
-        /*
-            난이도 게이지는 기존과 같은 방식으로
-            소프트 랜딩 품질 + 현재 콤보를 기준으로 증가한다.
-        */
-
         difficultyGauge +=
             DIFFICULTY_SOFT_LANDING_GAIN
             *
@@ -1052,24 +769,16 @@ function handleLanding(impactSpeed, jumpHeight) {
             *
             combo;
 
-
         difficultyGauge =
             Math.min(
                 DIFFICULTY_MAX,
                 difficultyGauge
             );
 
+        player.impactGraceTime = 0.7;
 
         return true;
     }
-
-
-    /*
-        일반 착지
-
-        죽지는 않지만 콤보가 끊기고
-        난이도 게이지가 절반으로 감소한다.
-    */
 
     combo = 0;
     comboPulse = 0;
@@ -1077,6 +786,8 @@ function handleLanding(impactSpeed, jumpHeight) {
     lastLandingScore = 0;
 
     difficultyGauge *= 0.5;
+
+    player.impactGraceTime = 0.2;
 
     return true;
 }
@@ -1091,17 +802,7 @@ function triggerComboEffect() {
     const color =
         getComboColor(combo);
 
-
-    // 콤보가 유지되는 동안 색상/오라를 계속 표시한다.
     comboPulse = comboPulseMax;
-
-
-    /*
-        콤보 횟수 표시.
-
-        공의 오른쪽 위에서 시작해서
-        오른쪽 위 대각선 방향으로 이동하며 사라진다.
-    */
 
     comboPopup = {
 
@@ -1123,7 +824,6 @@ function triggerComboEffect() {
     };
 }
 
-
 function triggerAirtimeBonusEffect(gained) {
 
     airtimeBonusPopup = {
@@ -1134,15 +834,12 @@ function triggerAirtimeBonusEffect(gained) {
         life: 0.70,
         maxLife: 0.70,
         text: `+${gained}`,
-        color: getComboColor(Math.max(1, combo))
+        // 현재 공의 콤보 상태 색상과 완전히 일치하도록 적용
+        color: getComboColor(combo)
     };
 }
 
 function updateComboEffects(dt) {
-
-    // comboPulse는 콤보가 깨질 때까지 유지된다.
-    // 따라서 성공 직후뿐 아니라 콤보 유지 중에도 색상 효과가 계속 보인다.
-
 
     if (comboPopup) {
 
@@ -1160,7 +857,6 @@ function updateComboEffects(dt) {
 
         comboPopup.life -= dt;
 
-
         if (comboPopup.life <= 0) {
             comboPopup = null;
         }
@@ -1172,23 +868,13 @@ function updateComboEffects(dt) {
    BLOCK SCORE
    ========================================================= */
 
-function checkPassedBlocks() {
+let passedBlockCount = 0;
 
-    /*
-        현재 위치까지 필요한 블럭을 생성
-    */
+function checkPassedBlocks() {
 
     ensureTerrainTo(
         player.x
     );
-
-
-    /*
-        블럭의 끝을 넘어갈 때마다 1점.
-
-        큰 timestep 등으로 여러 블럭을 한 번에
-        넘는 경우에도 빠진 점수 없이 모두 처리한다.
-    */
 
     while (
         nextScoreBlockIndex
@@ -1200,8 +886,12 @@ function checkPassedBlocks() {
             nextScoreBlockIndex
         ].end
     ) {
+        passedBlockCount += 1;
 
-        score += Math.max(1, combo);
+        if (passedBlockCount % 3 === 0) {
+            const multiplier = Math.max(1, combo + 1);
+            score += 1 * multiplier;
+        }
 
         nextScoreBlockIndex += 1;
     }
@@ -1218,63 +908,39 @@ function physicsStep(dt) {
         return;
     }
 
+    if (player.impactGraceTime > 0) {
+        player.impactGraceTime -= dt;
+    }
 
-    const wasGrounded =
-        player.grounded;
+    const currentWorldHeight = Math.max(0, player.y - player.jumpBaseY);
+    const currentPixelHeight = currentWorldHeight * camera.zoom;
+    const heightRatio = currentPixelHeight / H;
+    const gravityMultiplier = 1.0 + Math.pow(heightRatio, 2);
 
-
-    /*
-        중력
-    */
-
-    player.vy -=
-        GRAVITY * dt;
-
-
-    /*
-        좌클릭 외력
-    */
+    player.vy -= GRAVITY * gravityMultiplier * dt;
 
     if (mouseLeft) {
 
         if (player.grounded) {
-
-            /*
-                지면:
-                오른쪽 가속
-            */
 
             player.vx +=
                 getGroundAcceleration() * dt;
 
         } else {
 
-            /*
-                공중:
-                아래쪽 가속
-            */
-
             player.vy -=
                 DOWN_ACCELERATION * dt;
         }
     }
 
-
-    /*
-        위치
-    */
+    // vx 상한을 16으로 제한
+    player.vx = Math.min(player.vx, MAX_VX);
 
     player.x +=
         player.vx * dt;
 
     player.y +=
         player.vy * dt;
-
-
-    /*
-        공중에 있는 동안 이번 점프의
-        최고 높이를 기록한다.
-    */
 
     if (!player.grounded) {
 
@@ -1298,11 +964,13 @@ function physicsStep(dt) {
 
             if (newBonus > airtimeBonusScore) {
 
-                const gained =
-                    newBonus - airtimeBonusScore;
-
+                const gained = newBonus - airtimeBonusScore;
                 airtimeBonusScore = newBonus;
-                const weightedGained = gained * Math.max(1, combo);
+
+                // 0콤보 시 n = 1 가중치 적용, 1콤보 이상 시 n = combo 가중치 적용
+                const multiplier = Math.max(1, combo + 1);
+                const weightedGained = gained * multiplier;
+
                 score += weightedGained;
 
                 triggerAirtimeBonusEffect(weightedGained);
@@ -1310,79 +978,44 @@ function physicsStep(dt) {
         }
     }
 
-
-    /*
-        블럭 통과 점수
-    */
-
     checkPassedBlocks();
-
-
-    /*
-        현재 지형
-    */
 
     const ground =
         terrainHeight(
             player.x
         );
 
-
     const slope =
         terrainSlope(
             player.x
         );
-
-
-    /*
-        접선 벡터
-    */
 
     const tangentLength =
         Math.sqrt(
             1 + slope * slope
         );
 
-
     const tx =
         1 / tangentLength;
-
 
     const ty =
         slope / tangentLength;
 
-
-    /*
-        법선 벡터
-    */
-
     const nx =
         -slope / tangentLength;
 
-
     const ny =
         1 / tangentLength;
-
-
-    /*
-        공의 바닥과 지형의 관계
-    */
 
     const bottom =
         player.y
         -
         player.radius;
 
-
     const penetration =
         ground
         -
         bottom;
-
-
-    /*
-        법선 속도
-    */
 
     const normalVelocity =
         dot(
@@ -1392,27 +1025,8 @@ function physicsStep(dt) {
             ny
         );
 
-
-    /*
-        공 바닥과 지면 사이의 거리.
-    */
-
     const separation =
         bottom - ground;
-
-
-    /*
-        실제 이탈 판정.
-
-        작은 지면 진동은 무시하고,
-        공의 바닥이 지면에서 충분히 떨어졌을 때만
-        실제 점프를 시작한다.
-
-        한번 실제 점프가 시작되면
-        jumpActive가 착지할 때까지 유지된다.
-        따라서 지면 근처의 작은 수치 오차 때문에
-        다시 grounded 상태로 돌아가지 않는다.
-    */
 
     const actualTakeoff =
         player.grounded
@@ -1420,7 +1034,6 @@ function physicsStep(dt) {
         !player.jumpActive
         &&
         separation > GROUND_CONTACT_EPSILON;
-
 
     if (actualTakeoff) {
 
@@ -1438,26 +1051,9 @@ function physicsStep(dt) {
         airtimeBonusPopup = null;
     }
 
-
-    /*
-        ---------------------------------------
-        충돌 / 착지 처리
-        ---------------------------------------
-    */
-
     if (penetration > 0) {
 
-        /*
-            지형을 향해 들어오는 경우만
-            실제 충돌로 처리한다.
-        */
-
         if (normalVelocity < 0) {
-
-            /*
-                jumpActive가 true라면
-                이것은 실제 점프의 착지다.
-            */
 
             if (player.jumpActive) {
 
@@ -1481,18 +1077,8 @@ function physicsStep(dt) {
                     return;
                 }
 
-                /*
-                    착지를 끝냈으므로
-                    다음 실제 이탈까지 점프 상태 종료.
-                */
-
                 player.jumpActive = false;
             }
-
-
-            /*
-                접선 속도
-            */
 
             const tangentVelocity =
                 dot(
@@ -1502,42 +1088,25 @@ function physicsStep(dt) {
                     ty
                 );
 
-
-            /*
-                충돌 후 법선 속도
-            */
-
             const newNormalVelocity =
                 -normalVelocity
                 *
                 RESTITUTION;
-
-
-            /*
-                속도 재구성
-            */
 
             player.vx =
                 tangentVelocity * tx
                 +
                 newNormalVelocity * nx;
 
-
             player.vy =
                 tangentVelocity * ty
                 +
                 newNormalVelocity * ny;
 
-
-            /*
-                표면 위로 보정
-            */
-
             player.y =
                 ground
                 +
                 player.radius;
-
 
             player.grounded = true;
 
@@ -1545,12 +1114,6 @@ function physicsStep(dt) {
                 player.y;
 
         } else {
-
-            /*
-                jumpActive 중에는 절대로
-                작은 간격을 이유로 grounded=true로
-                되돌리지 않는다.
-            */
 
             if (player.jumpActive) {
 
@@ -1575,11 +1138,6 @@ function physicsStep(dt) {
 
     } else {
 
-        /*
-            공중 점프가 이미 시작됐다면
-            착지할 때까지 계속 공중 상태다.
-        */
-
         if (player.jumpActive) {
 
             player.grounded = false;
@@ -1596,11 +1154,6 @@ function physicsStep(dt) {
         }
     }
 
-
-    /*
-        실제 점프 중일 때만 최고 높이를 기록한다.
-    */
-
     if (player.jumpActive) {
 
         player.maxJumpHeight =
@@ -1609,11 +1162,6 @@ function physicsStep(dt) {
                 player.y
             );
     }
-
-
-    /*
-        너무 아래로 떨어지면 리셋
-    */
 
     if (player.y < -10) {
 
@@ -1628,43 +1176,21 @@ function physicsStep(dt) {
 
 const camera = {
 
-    /*
-        카메라 중심의 월드 X
-
-        X와 zoom은 완전히 독립
-    */
-
     centerX: 3,
 
     zoom: 95
 };
 
-
-/*
-    화면 최하단
-        y = -2
-*/
-
 const CAMERA_BOTTOM_Y = -2;
-
-
-/*
-    줌
-*/
 
 const MAX_ZOOM = 95;
 
-const MIN_ZOOM = 50;
+const MIN_ZOOM = 55;
 
-/* Responsive camera scaling: 1600x900 is the original reference view. */
 const CAMERA_REFERENCE_WIDTH = 1600;
 const CAMERA_REFERENCE_HEIGHT = 900;
 
 function getViewportScale() {
-    /*
-        가로 방향으로 긴 화면에서도 세로에 끌려가서
-        과도하게 줌아웃되지 않도록 가로 크기를 기준으로 한다.
-    */
     return W / CAMERA_REFERENCE_WIDTH;
 }
 
@@ -1676,53 +1202,18 @@ function getResponsiveMinZoom() {
     return MIN_ZOOM * getViewportScale();
 }
 
-
-
-/*
-    좌우 카메라
-
-    공보다 얼마나 앞을 바라볼지
-*/
-
 const CAMERA_LOOK_AHEAD = 3.0;
-
-
-/*
-    카메라 X 추적 속도
-*/
 
 const CAMERA_X_SPEED = 20;
 
-
-/*
-    공이 화면에서 너무 오른쪽으로 가면
-    강제로 카메라를 더 빨리 따라가게 한다.
-*/
-
 const CAMERA_RIGHT_LIMIT = 0.72;
-
-
-/*
-    상승할 때의 줌아웃 정도
-*/
 
 const ZOOM_HEIGHT_FACTOR_UP = 11;
 
-/*
-    하강할 때의 줌아웃 정도
-*/
-
 const ZOOM_HEIGHT_FACTOR_DOWN = 20;
-
-
-/*
-    줌 변화 속도
-*/
 
 const ZOOM_SPEED = 3.0;
 
-// 높이가 높아질수록 시간이 선형적으로 느려진다.
-// 높이 0에서는 1.0배, 기준 높이 이상에서는 0.8배.
 const TIME_SLOW_HEIGHT = 2.0;
 const MIN_TIME_SCALE = 0.8;
 
@@ -1750,10 +1241,6 @@ function getTimeScale() {
 
 function updateCamera(dt) {
 
-    /* =====================================================
-       ZOOM
-       ===================================================== */
-
     let targetZoom;
 
     const ZOOM_HEIGHT_FACTOR = (!player.grounded && player.vy > 0)
@@ -1770,7 +1257,6 @@ function updateCamera(dt) {
             player.radius
         );
 
-
     targetZoom =
         getResponsiveMaxZoom()
         -
@@ -1779,11 +1265,6 @@ function updateCamera(dt) {
         ZOOM_HEIGHT_FACTOR
         *
         getViewportScale();
-
-
-    /*
-        줌 제한
-    */
 
     targetZoom =
         Math.max(
@@ -1794,17 +1275,11 @@ function updateCamera(dt) {
             )
         );
 
-
-    /*
-        줌을 부드럽게 변경
-    */
-
     const zoomSmooth =
         1 -
         Math.exp(
             -ZOOM_SPEED * dt
         );
-
 
     camera.zoom +=
         (
@@ -1815,37 +1290,15 @@ function updateCamera(dt) {
         *
         zoomSmooth;
 
-
-    /* =====================================================
-       CAMERA X
-       ===================================================== */
-
-    /*
-        공보다 앞을 바라보는 목표 위치
-
-        zoom은 여기서 사용하지 않는다.
-    */
-
     let targetCenterX =
         player.x
         +
         CAMERA_LOOK_AHEAD;
 
-
-    /*
-        현재 공의 화면 위치
-    */
-
     const playerScreenX =
         screenX(
             player.x
         );
-
-
-    /*
-        공이 너무 오른쪽으로 가면
-        카메라가 더 적극적으로 따라간다.
-    */
 
     if (
         playerScreenX
@@ -1862,7 +1315,6 @@ function updateCamera(dt) {
             /
             camera.zoom;
 
-
         targetCenterX =
             Math.max(
                 targetCenterX,
@@ -1870,28 +1322,17 @@ function updateCamera(dt) {
             );
     }
 
-
-    /*
-        카메라는 절대로 왼쪽으로 움직이지 않는다.
-    */
-
     targetCenterX =
         Math.max(
             targetCenterX,
             camera.centerX
         );
 
-
-    /*
-        부드러운 X 이동
-    */
-
     const xSmooth =
         1 -
         Math.exp(
             -CAMERA_X_SPEED * dt
         );
-
 
     camera.centerX +=
         (
@@ -1902,19 +1343,10 @@ function updateCamera(dt) {
         *
         xSmooth;
 
-
-    /*
-        비상 안전장치
-
-        공이 화면 오른쪽 82%를 넘어가면
-        빠르게 추적한다.
-    */
-
     const newPlayerScreenX =
         screenX(
             player.x
         );
-
 
     if (
         newPlayerScreenX
@@ -1930,7 +1362,6 @@ function updateCamera(dt) {
             )
             /
             camera.zoom;
-
 
         if (
             emergencyCenterX
@@ -1973,11 +1404,6 @@ function screenX(x) {
     );
 }
 
-
-/*
-    화면 최하단 = y = -2
-*/
-
 function screenY(y) {
 
     return (
@@ -1995,53 +1421,38 @@ function screenY(y) {
 
 
 /* =========================================================
-   BACKGROUND
+   BACKGROUND DRAW
    ========================================================= */
 
 function drawBackground() {
 
-    ctx.fillStyle =
-        "#101820";
+    const baseLightness = 9.4; 
+    const maxLightness = 28.0; 
+    
+    const comboRatio = Math.min(1, combo / 8); 
+    const currentLightness = baseLightness + (maxLightness - baseLightness) * comboRatio;
 
+    ctx.fillStyle = `hsl(210, 33%, ${currentLightness}%)`;
+    ctx.fillRect(0, 0, W, H);
 
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-
-    ctx.fillStyle =
-        "rgba(255,255,255,0.08)";
-
+    const dotAlpha = 0.08 + comboRatio * 0.22; 
+    ctx.fillStyle = `rgba(255, 255, 255, ${dotAlpha})`;
 
     const spacing = 80;
 
-
-    for (
-        let x = 0;
-        x < W;
-        x += spacing
-    ) {
-
-        for (
-            let y = 0;
-            y < H * 0.5;
-            y += spacing
-        ) {
-
+    for (let x = 0; x < W; x += spacing) {
+        for (let y = 0; y < H * 0.5; y += spacing) {
             ctx.beginPath();
 
+            const dotSize = 1 + comboRatio * 0.8; 
 
             ctx.arc(
                 x + ((y * 13) % 40),
                 y + ((x * 7) % 30),
-                1,
+                dotSize,
                 0,
                 Math.PI * 2
             );
-
 
             ctx.fill();
         }
@@ -2064,14 +1475,12 @@ function drawTerrain() {
             camera.zoom
         );
 
-
     const leftWorld =
         camera.centerX
         -
         visibleHalfWidth
         -
         2;
-
 
     const rightWorld =
         camera.centerX
@@ -2080,35 +1489,24 @@ function drawTerrain() {
         +
         2;
 
-
     ensureTerrainTo(
         rightWorld
     );
 
-
     const step = 0.035;
 
-
-    /*
-        지형 채우기
-    */
-
     ctx.beginPath();
-
 
     let x =
         leftWorld;
 
-
     let y =
         terrainHeight(x);
-
 
     ctx.moveTo(
         screenX(x),
         screenY(y)
     );
-
 
     for (
         x = leftWorld + step;
@@ -2119,60 +1517,41 @@ function drawTerrain() {
         y =
             terrainHeight(x);
 
-
         ctx.lineTo(
             screenX(x),
             screenY(y)
         );
     }
-
-
-    /*
-        화면 아래까지 닫기
-    */
 
     ctx.lineTo(
         screenX(rightWorld),
         H + 100
     );
 
-
     ctx.lineTo(
         screenX(leftWorld),
         H + 100
     );
 
-
     ctx.closePath();
-
 
     ctx.fillStyle =
         "#263238";
 
-
     ctx.fill();
 
-
-    /*
-        지형 외곽선
-    */
-
     ctx.beginPath();
-
 
     x =
         leftWorld;
 
-
     y =
         terrainHeight(x);
-
 
     ctx.moveTo(
         screenX(x),
         screenY(y)
     );
-
 
     for (
         x = leftWorld + step;
@@ -2183,29 +1562,20 @@ function drawTerrain() {
         y =
             terrainHeight(x);
 
-
         ctx.lineTo(
             screenX(x),
             screenY(y)
         );
     }
 
-
     ctx.strokeStyle =
         "#eeeeee";
 
-
-    /*
-        지형선도 카메라 스케일에 맞춰 축소한다.
-        모바일의 작은 화면에서 2px가 상대적으로 너무 두껍게
-        보이는 현상을 방지한다.
-    */
     ctx.lineWidth =
         Math.max(
             0.8,
             2 * getViewportScale()
         );
-
 
     ctx.stroke();
 }
@@ -2222,28 +1592,18 @@ function drawPlayer() {
             player.x
         );
 
-
     const sy =
         screenY(
             player.y
         );
-
 
     const radius =
         player.radius
         *
         camera.zoom;
 
-
-    /*
-        콤보 성공 직후에는
-        콤보 횟수에 따라 다른 색의 오라를
-        공 자체에 표시한다.
-    */
-
     if (combo > 0) {
 
-        // 콤보가 깨지기 전까지 오라를 유지한다.
         const progress = 0;
 
         const comboNumber =
@@ -2258,11 +1618,6 @@ function drawPlayer() {
                 1
             );
 
-
-        /*
-            바깥쪽 맥동 링
-        */
-
         const pulseRadius =
             radius
             *
@@ -2273,7 +1628,6 @@ function drawPlayer() {
             )
             *
             auraScale;
-
 
         ctx.save();
 
@@ -2298,16 +1652,11 @@ function drawPlayer() {
             pulseRadius,
             0,
             Math.PI * 2
-        );
+        )
 
         ctx.stroke();
 
         ctx.restore();
-
-
-        /*
-            공 주변의 색상 오라
-        */
 
         const glowRadius =
             radius
@@ -2318,7 +1667,6 @@ function drawPlayer() {
                 auraScale * 0.45
             );
 
-
         const gradient =
             ctx.createRadialGradient(
                 sx,
@@ -2328,7 +1676,6 @@ function drawPlayer() {
                 sy,
                 glowRadius
             );
-
 
         gradient.addColorStop(
             0,
@@ -2354,7 +1701,6 @@ function drawPlayer() {
             )
         );
 
-
         ctx.save();
 
         ctx.globalAlpha =
@@ -2377,11 +1723,6 @@ function drawPlayer() {
         ctx.restore();
     }
 
-
-    /*
-        그림자
-    */
-
     ctx.beginPath();
 
     ctx.arc(
@@ -2397,14 +1738,6 @@ function drawPlayer() {
 
     ctx.fill();
 
-
-    /*
-        공
-
-        콤보 성공 순간에는
-        콤보 색상으로 잠깐 변한다.
-    */
-
     ctx.beginPath();
 
     ctx.arc(
@@ -2415,24 +1748,10 @@ function drawPlayer() {
         Math.PI * 2
     );
 
-
-    if (combo > 0) {
-
-        // 콤보가 유지되는 동안 항상 현재 콤보 색상을 유지한다.
-        ctx.fillStyle =
-            getComboColor(
-                combo,
-                0.72
-            );
-
-    } else {
-
-        ctx.fillStyle =
-            "#ffffff";
-    }
+    // 공의 색상 (combo 0일 때는 흰색 #ffffff가 리턴됨)
+    ctx.fillStyle = getComboColor(combo, combo > 0 ? 0.72 : 1.0);
 
     ctx.fill();
-
 
     ctx.strokeStyle =
         "#111111";
@@ -2440,14 +1759,6 @@ function drawPlayer() {
     ctx.lineWidth = 2;
 
     ctx.stroke();
-
-
-    /*
-        콤보 횟수 표시
-
-        공의 오른쪽 위에서 시작해서
-        오른쪽 위 대각선으로 이동하며 사라진다.
-    */
 
     if (airtimeBonusPopup) {
 
@@ -2507,7 +1818,6 @@ function drawPlayer() {
         const popupY =
             screenY(comboPopup.y);
 
-
         ctx.save();
 
         ctx.globalAlpha = alpha;
@@ -2555,20 +1865,10 @@ function drawPlayer() {
    LANDING THRESHOLD GUIDE
    ========================================================= */
 
-/* =========================================================
-   LANDING THRESHOLD GUIDE
-   ========================================================= */
-
-/*
-    요구 착지 높이를 나타내는 실선.
-    높이 변화는 landingGuideY가 부드럽게 따라간다.
-*/
-
 function drawGuideLine(worldY) {
 
     const sy =
         screenY(worldY);
-
 
     if (
         sy < -40
@@ -2577,7 +1877,6 @@ function drawGuideLine(worldY) {
     ) {
         return;
     }
-
 
     ctx.save();
 
@@ -2603,7 +1902,6 @@ function drawGuideLine(worldY) {
     ctx.restore();
 }
 
-
 function updateLandingGuide(dt) {
 
     const targetY =
@@ -2618,13 +1916,11 @@ function updateLandingGuide(dt) {
         smooth;
 }
 
-
 function drawLandingThreshold() {
 
     if (gameOver) {
         return;
     }
-
 
     drawGuideLine(
         landingGuideY
@@ -2651,10 +1947,6 @@ function drawHUD() {
         16,
         30
     );
-
-    /*
-        게임 오버
-    */
 
     if (gameOver) {
 
@@ -2720,10 +2012,6 @@ function render() {
 
 function reset() {
 
-    /*
-        게임 상태 초기화
-    */
-
     score = 0;
 
     combo = 0;
@@ -2740,29 +2028,18 @@ function reset() {
 
     nextScoreBlockIndex = 0;
 
+    passedBlockCount = 0;
+
     comboPulse = 0;
     comboPopup = null;
     currentJumpAirTime = 0;
     airtimeBonusScore = 0;
     airtimeBonusPopup = null;
 
-
-    /*
-        기존 랜덤 지형 삭제
-    */
-
     terrainBlocks = [];
-
-
-    /*
-        ---------------------------------------
-        첫 번째 블럭은 무조건 START
-        ---------------------------------------
-    */
 
     const startType =
         TERRAIN_TYPES[0];
-
 
     terrainBlocks.push({
 
@@ -2777,29 +2054,9 @@ function reset() {
         end: startType.width
     });
 
-
-    /*
-        ---------------------------------------
-        이후부터 랜덤
-        ---------------------------------------
-    */
-
-    /*
-        첫 번째 랜덤 블럭을 하나 바로 생성
-        이후에는 ensureTerrainTo()가 자동 생성
-    */
-
     generateNextTerrainBlock();
 
-
-    /*
-        ---------------------------------------
-        플레이어
-        ---------------------------------------
-    */
-
     player.x = 0;
-
 
     player.y =
         terrainHeight(0)
@@ -2808,16 +2065,15 @@ function reset() {
         +
         0.001;
 
-
     player.vx = 0;
 
     player.vy = 0;
-
 
     player.grounded = true;
 
     player.jumpActive = false;
 
+    player.impactGraceTime = 0;
 
     player.jumpBaseY =
         terrainHeight(0);
@@ -2828,23 +2084,11 @@ function reset() {
     player.maxJumpHeight =
         player.y;
 
-    player.jumpActive = false;
-
-
     landingGuideY =
         getRequiredComboY();
 
-
-
-    /*
-        ---------------------------------------
-        카메라
-        ---------------------------------------
-    */
-
     camera.zoom =
         MAX_ZOOM;
-
 
     camera.centerX =
         player.x
@@ -2860,7 +2104,6 @@ function reset() {
 let previousTime =
     performance.now();
 
-
 function loop(time) {
 
     let dt =
@@ -2872,27 +2115,14 @@ function loop(time) {
         /
         1000;
 
-
     previousTime =
         time;
-
-
-    /*
-        긴 프레임 방지
-    */
 
     dt =
         Math.min(
             dt,
             0.05
         );
-
-
-    /*
-        ---------------------------------------
-        PHYSICS
-        ---------------------------------------
-    */
 
     const timeScale = getTimeScale();
     const gameDt = dt * timeScale;
@@ -2903,7 +2133,6 @@ function loop(time) {
     let remaining =
         gameDt;
 
-
     while (remaining > 0) {
 
         const step =
@@ -2912,49 +2141,18 @@ function loop(time) {
                 remaining
             );
 
-
         physicsStep(step);
-
 
         remaining -= step;
     }
 
-
-    /*
-        ---------------------------------------
-        CAMERA
-        ---------------------------------------
-    */
-
     updateCamera(gameDt);
-
-
-    /*
-        ---------------------------------------
-        LANDING GUIDE
-        ---------------------------------------
-    */
 
     updateLandingGuide(gameDt);
 
-
-    /*
-        ---------------------------------------
-        COMBO EFFECTS
-        ---------------------------------------
-    */
-
     updateComboEffects(gameDt);
 
-
-    /*
-        ---------------------------------------
-        RENDER
-        ---------------------------------------
-    */
-
     render();
-
 
     requestAnimationFrame(loop);
 }
