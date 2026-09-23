@@ -239,6 +239,11 @@ function generateNextTerrainBlock() {
         TERRAIN_TYPES[typeIndex];
 
 
+    /* 선택된 지형의 가로/세로 배율: 1.0 ~ 1.8 */
+    const scale =
+        1.0 + Math.random() * 0.5;
+
+
     const start =
         terrainBlocks.length === 0
             ? 0
@@ -253,9 +258,11 @@ function generateNextTerrainBlock() {
 
         name: type.name,
 
+        scale: scale,
+
         start: start,
 
-        end: start + type.width
+        end: start + type.width * scale
     });
 }
 
@@ -365,11 +372,17 @@ function terrainHeight(x) {
         ];
 
 
+    const scale =
+        block.scale || 1.0;
+
+
+    /* 가로로 scale만큼 늘어난 블럭을 원래 좌표로 변환 */
     const localX =
-        x - block.start;
+        (x - block.start) / scale;
 
 
-    return type.height(localX);
+    /* 세로도 동일한 scale 적용 */
+    return type.height(localX) * scale;
 }
 
 
@@ -475,7 +488,7 @@ const COMBO_ACCELERATION_BONUS = 0.9;
     공중에서 좌클릭
 */
 
-const DOWN_ACCELERATION = 16.0;
+const DOWN_ACCELERATION = 17.0;
 
 
 /*
@@ -803,40 +816,29 @@ window.addEventListener(
 
 
 /* =========================================================
-   ANDROID TV REMOTE INPUT & FOCUS SETUP
+   ANDROID TV REMOTE INPUT
    ========================================================= */
 
-// 1. Canvas가 포커스를 받을 수 있도록 tabindex 설정 및 포커스 강제
-canvas.setAttribute("tabindex", "0");
-canvas.focus();
+/*
+    Android TV 리모컨의 "1" 버튼을
+    PC의 좌클릭과 동일한 입력으로 취급한다.
 
-// 화면 어디를 터치/클릭하든 Canvas로 포커스를 다시 가져옵니다.
-window.addEventListener("click", function() {
-    canvas.focus();
-});
-
+    1 버튼을 누르고 있는 동안 mouseLeft === true.
+    1 버튼을 떼면 mouseLeft === false.
+    게임오버에서 1 버튼을 누르면 좌클릭과 동일하게 재시작한다.
+*/
 let remoteOnePressed = false;
-
-// 2. 입력 키 감지 함수 (숫자 1, Numpad 1, OK/Enter/Space 지원)
-function isControlKey(e) {
-    return (
-        e.code === "Digit1" ||
-        e.code === "Numpad1" ||
-        e.key === "1" ||
-        e.keyCode === 49 ||        // 숫자 '1'의 KeyCode (TV 브라우저 호환)
-        e.keyCode === 97 ||        // 넘버패드 '1'의 KeyCode
-        e.key === "Enter" ||       // 리모컨 OK/확인 버튼 호환성 추가
-        e.code === "Space" ||
-        e.keyCode === 13 ||
-        e.keyCode === 32
-    );
-}
 
 window.addEventListener(
     "keydown",
     function(e) {
-        if (isControlKey(e)) {
-            // TV 화면 스크롤 등 브라우저 기본 동작 방지
+
+        if (
+            e.code === "Digit1"
+            || e.code === "Numpad1"
+            || e.key === "1"
+        ) {
+
             e.preventDefault();
 
             if (!remoteOnePressed) {
@@ -850,21 +852,25 @@ window.addEventListener(
                 }
             }
         }
-    },
-    { passive: false }
+    }
 );
 
 window.addEventListener(
     "keyup",
     function(e) {
-        if (isControlKey(e)) {
+
+        if (
+            e.code === "Digit1"
+            || e.code === "Numpad1"
+            || e.key === "1"
+        ) {
+
             e.preventDefault();
 
             remoteOnePressed = false;
             mouseLeft = false;
         }
-    },
-    { passive: false }
+    }
 );
 
 
@@ -947,7 +953,7 @@ function handleLanding(impactSpeed, jumpHeight) {
 
     if (
         impactSpeed
-        >= HARD_LANDING_THRESHOLD * (1 + 1.1 * difficultyGauge / DIFFICULTY_MAX)
+        >= HARD_LANDING_THRESHOLD * (1 + 0.9 * difficultyGauge / DIFFICULTY_MAX)
     ) {
 
         gameOver = true;
@@ -2763,6 +2769,8 @@ function reset() {
         type: 0,
 
         name: startType.name,
+
+        scale: 1.0,
 
         start: 0,
 
